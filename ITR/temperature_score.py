@@ -235,7 +235,7 @@ class TemperatureScore(PortfolioAggregation):
     def get_annual_reduction_rate(self, target: pd.Series) -> Optional[float]:
         """
         Get the annual reduction rate (or None if not available).
-        From version 1.5 the annual reduction rate is calculated as a 
+        From version 1.5 the annual reduction rate is calculated as a
         compund annual reduction rate, CAR.
 
         :param target: The target as a row of a dataframe
@@ -245,7 +245,7 @@ class TemperatureScore(PortfolioAggregation):
         check = check or pd.isnull(target[self.c.COLS.END_YEAR])
         check = check or pd.isnull(target[self.c.COLS.BASE_YEAR])
         check = check or (target[self.c.COLS.END_YEAR] <= target[self.c.COLS.BASE_YEAR])
-        
+
         if check:
             return None
         else:
@@ -293,7 +293,7 @@ class TemperatureScore(PortfolioAggregation):
         Merge the data with the regression parameters from the CDP-WWF Warming Function.
         :param data: The data to merge
         :return: The data set, amended with the regression parameters
-        """     
+        """
         def get_slope(row: pd.Series) -> Optional[str]:
             return self.c.SLOPE_MAP.get(row[self.c.COLS.TIME_FRAME], None)
 
@@ -314,24 +314,24 @@ class TemperatureScore(PortfolioAggregation):
         :param target: The target as a row of a data frame
         :return: The temperature score
         """
-   
+
         if not target.to_calculate:
             return self.default_score, 1.0
-        
+
         # CAR formula won't accept reduction of 100%, so assign the floor temperature score
         if abs(target[self.c.COLS.REDUCTION_AMBITION] - 1.0) < self.c.EPSILON:
             ts = self.c.TEMPERATURE_FLOOR
         # If target is set using CDP-WWF method, use the T_score from equation 5 in method doc
         elif target[self.c.COLS.TARGET_TYPE_AR6].lower() == "t_score":
             ts = max(
-                target[self.c.COLS.BASE_YEAR_TS] 
+                target[self.c.COLS.BASE_YEAR_TS]
                 - (2040 - target[self.c.COLS.BASE_YEAR])
                 * ((target[self.c.COLS.BASE_YEAR_TS] - target[self.c.COLS.END_YEAR_TS])
                    / (target[self.c.COLS.END_YEAR] - target[self.c.COLS.BASE_YEAR])),
                 self.c.TEMPERATURE_FLOOR
             )
-        else:    
-            try:       
+        else:
+            try:
                 ts = max(
                     target[self.c.COLS.REGRESSION_PARAM]
                     * target[self.c.COLS.ANNUAL_REDUCTION_RATE]
@@ -355,11 +355,11 @@ class TemperatureScore(PortfolioAggregation):
         self, row: pd.Series, company_data: pd.DataFrame
     ) -> Tuple[float, float, list]:
         """
-        Get the aggregated temperature score and a temperature result, which indicates how much of the score is 
+        Get the aggregated temperature score and a temperature result, which indicates how much of the score is
         based on the default score for a certain company based on the emissions of company.
 
         :param company_data: The original data, grouped by company, time frame and scope category
-        :param row: The row to calculate the temperature score for (if the scope of the row isn't s1s2s3, 
+        :param row: The row to calculate the temperature score for (if the scope of the row isn't s1s2s3,
         it will return the original score
         :return: The aggregated temperature score for a company
         """
@@ -368,11 +368,11 @@ class TemperatureScore(PortfolioAggregation):
             and row[self.c.COLS.TARGET_TYPE_AR6].lower() == "t_score"
         ):
             return (
-                row[self.c.COLS.TEMPERATURE_SCORE], 
+                row[self.c.COLS.TEMPERATURE_SCORE],
                 row[self.c.TEMPERATURE_RESULTS],
                 row[self.c.COLS.TARGET_IDS],
             )
-        
+
         s1 = company_data.xs(
             (row[self.c.COLS.COMPANY_ID], row[self.c.COLS.TIME_FRAME], EScope.S1)
         )
@@ -392,41 +392,41 @@ class TemperatureScore(PortfolioAggregation):
         s3_ghg = s3[self.c.COLS.GHG_SCOPE3]
 
         if s1_ghg > 0 and s2_ghg > 0 and s3_ghg > 0:
-            combined_TS = (s1.temperature_score * s1_ghg + 
-            s2.temperature_score * s2_ghg + 
+            combined_TS = (s1.temperature_score * s1_ghg +
+            s2.temperature_score * s2_ghg +
             s3.temperature_score * s3_ghg
             ) / (s1_ghg + s2_ghg + s3_ghg)
             combined_TR = (s1.temperature_results * s1_ghg +
             s2.temperature_results * s2_ghg +
             s3.temperature_results * s3_ghg
             ) / (s1_ghg + s2_ghg + s3_ghg)
-            combined_targets = list((s1.target_ids or []) + 
+            combined_targets = list((s1.target_ids or []) +
             (s2.target_ids or []) + (s3.target_ids or [])) or []
         elif s1s2_ghg > 0 and s3_ghg > 0:
             if s1s2.to_calculate:
-                combined_TS = (s1s2.temperature_score * s1s2_ghg + 
+                combined_TS = (s1s2.temperature_score * s1s2_ghg +
                 s3.temperature_score * s3_ghg
                 ) / (s1s2_ghg + s3_ghg)
             else:
                 combined_TS = max(s1s2.temperature_score.item(), s3.temperature_score.item())
 
-            combined_TR = (s1s2.temperature_results * s1s2_ghg + 
+            combined_TR = (s1s2.temperature_results * s1s2_ghg +
             s3.temperature_results * s3_ghg
             ) / (s1s2_ghg + s3_ghg)
-            combined_targets = list((s1s2.target_ids or []) + 
+            combined_targets = list((s1s2.target_ids or []) +
             (s3.target_ids or [])) or []
         else:
             combined_TS = max(s1s2.temperature_score.item(), s3.temperature_score.item())
             combined_TR = row[self.c.TEMPERATURE_RESULTS]
             combined_targets = row[self.c.COLS.TARGET_IDS]
-       
+
 
         return (
             combined_TS,
             combined_TR,
             combined_targets
         ) # type: ignore Pylance doesn't understand that TS and TR are floats
-     
+
 
     def get_default_score(self, target: pd.Series) -> int:
         """
@@ -475,7 +475,7 @@ class TemperatureScore(PortfolioAggregation):
             self.c.COLS.TARGET_REFERENCE_NUMBER
         #].replace({np.nan: self.c.VALUE_TARGET_REFERENCE_ABSOLUTE})
         ].replace({np.nan: ETargetReference.ABSOLUTE.value})
-       
+
         # Replacing NaN with empty list in column target_ids
         data[self.c.COLS.TARGET_IDS] = data[self.c.COLS.TARGET_IDS].apply(
             lambda x: x if isinstance(x, list) else []
@@ -502,7 +502,7 @@ class TemperatureScore(PortfolioAggregation):
         :param data: The original data set as a pandas data frame
         :return: The data frame, with an updated s1s2s3 temperature score
         """
-     
+
         company_data = (
             data[
                 [
@@ -591,7 +591,7 @@ class TemperatureScore(PortfolioAggregation):
         # We need to filter the scopes again, because we might have had to add a scope in the preparation step
         data = data[data[self.c.COLS.SCOPE].isin(self.scopes)]
         data.drop(columns=['to_calculate'], inplace=True)
-        
+
         return data
 
     def _get_aggregations(
@@ -709,7 +709,7 @@ class TemperatureScore(PortfolioAggregation):
         """
         if self.scenario is None:
             return scores
-              
+
         if self.scenario.scenario_type == ScenarioType.APPROVED_TARGETS:
             score_based_on_target = ~pd.isnull(
                 scores[self.c.COLS.TARGET_REFERENCE_NUMBER]
@@ -776,13 +776,13 @@ class TemperatureScore(PortfolioAggregation):
     def _calculate_s1s2_score(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate the combined S1S2 score each combination of company_id, time_frame and scope.
-        If it was possible på calculate individual S1 and S2 scores, then we calculate the 
+        If it was possible på calculate individual S1 and S2 scores, then we calculate the
         aggregated S1S2 score.
 
         :param data: The data to calculate the S1S2 score for.
         :return: The S1S2 score.
         """
-              
+
         s1s2_data_mask = data[self.c.COLS.SCOPE].isin([EScope.S1, EScope.S2, EScope.S1S2])
         s1s2_data = data[s1s2_data_mask].copy()
         grouped_data = s1s2_data.groupby(['company_id', 'time_frame'])
@@ -790,8 +790,15 @@ class TemperatureScore(PortfolioAggregation):
         for _, group in grouped_data:
             s1s2_score = np.nan # Initailize the s1s2_score to NaN
             s1_s2_results = 1.0 # Initialize the s1_s2_results to 1.0
-            if (group.loc[group['scope'] == EScope.S1,'to_calculate'].item() or
-                group.loc[group['scope'] == EScope.S2, 'to_calculate'].item()
+
+            # NOTE: using `.item()` will raise a ValueError if the DataFrame has
+            # more than one row for the particular group, which might happens
+            # if the data is not properly prepared
+            #
+            # better to use `.any()` to check if there any rows, and still make
+            # the result worth it
+            if (group.loc[group['scope'] == EScope.S1,'to_calculate'].any() or
+                group.loc[group['scope'] == EScope.S2, 'to_calculate'].any()
             ):
                 # S1 and S2 scores are either calulted or default scores from earlier
                 s1_score = float(group.loc[group['scope'] == EScope.S1, 'temperature_score'].item())
@@ -801,7 +808,7 @@ class TemperatureScore(PortfolioAggregation):
                 s1_ghg = float(group.loc[group['scope'] == EScope.S1, 'ghg_s1'].item())
                 s2_ghg = float(group.loc[group['scope'] == EScope.S2, 'ghg_s2'].item())
                 # REQUIREMENT 6.5 Temperature Score Aggregation
-                
+
                 if not np.isnan(s1_ghg) and not np.isnan(s2_ghg):
                     try:
                         s1s2_score = (s1_score * s1_ghg + s2_score * s2_ghg) / (s1_ghg + s2_ghg)
@@ -814,19 +821,19 @@ class TemperatureScore(PortfolioAggregation):
                     s1_s2_results = 0.5
                 group.loc[group['scope'] == EScope.S1S2, 'temperature_score'] = s1s2_score
                 group.loc[group['scope'] == EScope.S1S2, 'temperature_results'] = s1_s2_results
-                s1_target_ids = group[group['scope'] == EScope.S1]['target_ids'].values 
+                s1_target_ids = group[group['scope'] == EScope.S1]['target_ids'].values
                 s2_target_ids = group[group['scope'] == EScope.S2]['target_ids'].values
                 combined_target_ids = list(set().union(*s1_target_ids, *s2_target_ids))
-                idx = group.index[group['scope'] == EScope.S1S2][0] 
+                idx = group.index[group['scope'] == EScope.S1S2][0]
                 group.at[idx, 'target_ids'] = combined_target_ids
-                        
+
                 # Explicitly infer object types to avoid future warnings
                 group = group.infer_objects()
                     # Update the original data DataFrame
                 data.update(group)
-                    
+
         return data
-          
+
     def _aggregate_s3_score(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Aggregate Scope 3 category scores into a single score per company and time frame.
